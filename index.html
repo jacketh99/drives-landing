@@ -95,7 +95,7 @@
     color: #666666;
   }
 
-  .signup-form { action=https://formspree.io/f/mgoqbebd 
+  .signup-form {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -252,14 +252,18 @@
   <div class="signup-section">
     <div class="signup-label">Be the first to know</div>
     <div class="signup-form">
-      <input
-        type="email"
-        id="emailInput"
-        class="signup-input"
-        placeholder="your@email.com"
-        autocomplete="email"
-      />
-      <button class="signup-btn" onclick="handleSignup()">Notify Me</button>
+      <form action="https://formspree.io/f/mgoqbebd" method="POST" id="signupForm">
+        <input
+          type="email"
+          name="email"
+          id="emailInput"
+          class="signup-input"
+          placeholder="your@email.com"
+          autocomplete="email"
+          required
+        />
+        <button type="submit" class="signup-btn">Notify Me</button>
+      </form>
     </div>
     <div class="signup-note">No spam. One email when we launch.</div>
     <div class="success-msg" id="successMsg">You're on the list. We'll be in touch.</div>
@@ -307,35 +311,39 @@
 </div>
 
 <script>
-  function handleSignup() {
-    const input = document.getElementById('emailInput');
-    const successMsg = document.getElementById('successMsg');
-    const email = input.value.trim();
+  const form = document.getElementById('signupForm');
+  const successMsg = document.getElementById('successMsg');
+  const signupNote = document.querySelector('.signup-note');
 
-    input.classList.remove('error');
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
 
-    if (!email || !email.includes('@') || !email.includes('.')) {
-      input.classList.add('error');
-      input.focus();
-      return;
-    }
+    const data = new FormData(form);
 
-    // Connect to Formspree - replace YOUR_FORM_ID with your actual Formspree form ID
-    fetch('https://formspree.io/f/YOUR_FORM_ID', {
+    fetch('https://formspree.io/f/mgoqbebd', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email })
-    }).catch(() => {});
-
-    document.querySelector('.signup-form').style.display = 'none';
-    document.querySelector('.signup-note').style.display = 'none';
-    successMsg.style.display = 'block';
-  }
-
-  document.getElementById('emailInput').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') handleSignup();
+      body: data,
+      headers: { 'Accept': 'application/json' }
+    }).then(function(response) {
+      if (response.ok) {
+        form.style.display = 'none';
+        signupNote.style.display = 'none';
+        successMsg.style.display = 'block';
+      } else {
+        response.json().then(function(data) {
+          if (data.errors) {
+            document.getElementById('emailInput') && document.getElementById('emailInput').classList.add('error');
+          }
+        });
+      }
+    }).catch(function() {
+      form.style.display = 'none';
+      signupNote.style.display = 'none';
+      successMsg.style.display = 'block';
+    });
   });
 </script>
 
 </body>
 </html>
+
