@@ -252,7 +252,8 @@
   <div class="signup-section">
     <div class="signup-label">Be the first to know</div>
     <div class="signup-form">
-      <form id="signupForm">
+      <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+      <form id="signupForm" action="YOUR_GOOGLE_APPS_SCRIPT_URL" method="POST" target="hidden_iframe" onsubmit="handleSubmit()">
         <input
           type="email"
           name="email"
@@ -311,36 +312,19 @@
 </div>
 
 <script>
-  const form = document.getElementById('signupForm');
-  const successMsg = document.getElementById('successMsg');
-  const signupNote = document.querySelector('.signup-note');
+  function handleSubmit() {
+    const successMsg = document.getElementById('successMsg');
+    const signupNote = document.querySelector('.signup-note');
+    const form = document.getElementById('signupForm');
 
-  // Replace this with your Google Apps Script Web App URL
-  const SHEETS_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL';
-
-  form.addEventListener('submit', function(e) {
-    e.preventDefault();
-
-    const email = document.getElementById('emailInput').value.trim();
-
-    if (!email) return;
-
-    fetch(SHEETS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: 'email=' + encodeURIComponent(email)
-    }).then(function() {
+    setTimeout(function() {
       form.style.display = 'none';
       signupNote.style.display = 'none';
       successMsg.style.display = 'block';
-    }).catch(function() {
-      form.style.display = 'none';
-      signupNote.style.display = 'none';
-      successMsg.style.display = 'block';
-    });
-  });
+    }, 500);
+  }
 </script>
 
 </body>
 </html>
+
