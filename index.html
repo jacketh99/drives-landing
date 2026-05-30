@@ -252,7 +252,7 @@
   <div class="signup-section">
     <div class="signup-label">Be the first to know</div>
     <div class="signup-form">
-      <form action="https://script.google.com/macros/s/AKfycbyv_BfrhT3M2Pp17PTADAgDmxBEcdmE5kRfx71G5O9lw7oMPN_wN9wePgAiLVWR4Nqc/exec" method="POST" id="signupForm">
+      <form id="signupForm">
         <input
           type="email"
           name="email"
@@ -315,27 +315,25 @@
   const successMsg = document.getElementById('successMsg');
   const signupNote = document.querySelector('.signup-note');
 
+  // Replace this with your Google Apps Script Web App URL
+  const SHEETS_URL = 'YOUR_GOOGLE_APPS_SCRIPT_URL';
+
   form.addEventListener('submit', function(e) {
     e.preventDefault();
 
-    const data = new FormData(form);
+    const email = document.getElementById('emailInput').value.trim();
 
-    fetch(https:'//script.google.com/macros/s/AKfycbyv_BfrhT3M2Pp17PTADAgDmxBEcdmE5kRfx71G5O9lw7oMPN_wN9wePgAiLVWR4Nqc/exec', {
+    if (!email) return;
+
+    fetch(SHEETS_URL, {
       method: 'POST',
-      body: data,
-      headers: { 'Accept': 'application/json' }
-    }).then(function(response) {
-      if (response.ok) {
-        form.style.display = 'none';
-        signupNote.style.display = 'none';
-        successMsg.style.display = 'block';
-      } else {
-        response.json().then(function(data) {
-          if (data.errors) {
-            document.getElementById('emailInput') && document.getElementById('emailInput').classList.add('error');
-          }
-        });
-      }
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'email=' + encodeURIComponent(email)
+    }).then(function() {
+      form.style.display = 'none';
+      signupNote.style.display = 'none';
+      successMsg.style.display = 'block';
     }).catch(function() {
       form.style.display = 'none';
       signupNote.style.display = 'none';
@@ -346,4 +344,3 @@
 
 </body>
 </html>
-
