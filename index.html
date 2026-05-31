@@ -3,344 +3,511 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="Track the roads you've driven. Discover new ones. Find your next great drive.">
 <title>Drives.</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-
-  html, body {
-    height: 100%;
-  }
-
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
-    background: #000000;
-    color: #ffffff;
+    background: #000;
+    color: #fff;
     font-family: 'Inter', sans-serif;
     font-weight: 300;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
-    padding: 40px 24px;
   }
 
-  .container {
-    text-align: center;
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 40px 24px; gap: 32px; background: #000;
+  }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: clamp(72px, 18vw, 120px); letter-spacing: 6px; line-height: 1; }
+  .logo span { color: #c8392b; }
+  .subtext { display: flex; flex-direction: column; gap: 4px; }
+  .subtext p { font-size: clamp(14px, 3.5vw, 17px); color: #aaa; line-height: 1.8; }
+  .scroll-hint { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .scroll-hint span { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: #333; }
+  .scroll-arrow { width: 1px; height: 40px; background: linear-gradient(to bottom, #444, transparent); animation: pulse 2s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+  /* Scroll area - 600vh total, 200vh per section */
+  .trace-wrapper { position: relative; height: 600vh; }
+
+  .trace-sticky {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow: hidden;
+    transition: background 1.2s ease;
+  }
+
+  /* The map canvas is taller than the viewport and moves upward as you scroll */
+  .map-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    max-width: 480px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 40px;
+    /* Height is set by JS to match the total road length in pixels */
+    will-change: transform;
   }
 
-  /* LOGO */
-  .logo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(72px, 18vw, 120px);
-    letter-spacing: 6px;
-    line-height: 1;
-    color: #ffffff;
+  .map-svg { width: 100%; height: 100%; display: block; }
+
+  /* Marker is fixed in the centre of the sticky viewport */
+  .marker-fixed {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  .marker-pulse {
+    position: absolute;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    animation: markerPulse 2s ease infinite;
+  }
+  @keyframes markerPulse {
+    0% { transform: translate(-50%,-50%) scale(1); opacity: 0.4; }
+    100% { transform: translate(-50%,-50%) scale(2.5); opacity: 0; }
+  }
+
+  /* Vignette overlay */
+  .vignette {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  /* Top and bottom fade */
+  .fade-top {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 180px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+    z-index: 4;
+    pointer-events: none;
+  }
+  .fade-bottom {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 180px;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  /* LABELS */
+  .road-label {
+    position: absolute;
+    z-index: 10;
+    max-width: 300px;
     opacity: 0;
-    animation: fadeIn 0.8s ease forwards;
-    animation-delay: 0.1s;
+    transition: opacity 0.7s ease, transform 0.7s ease;
+    pointer-events: none;
   }
+  .road-label.visible { opacity: 1; }
 
-  .logo span {
-    color: #c8392b;
-  }
+  .label-explore { left: 48px; top: 50%; transform: translateY(-40%); }
+  .label-explore.visible { transform: translateY(-50%); }
+  .label-discover { right: 48px; top: 50%; transform: translateY(-40%); text-align: right; }
+  .label-discover.visible { transform: translateY(-50%); }
+  .label-rate { left: 48px; top: 50%; transform: translateY(-40%); }
+  .label-rate.visible { transform: translateY(-50%); }
 
-  /* SUBTEXT */
-  .subtext {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    opacity: 0;
-    animation: fadeIn 0.8s ease forwards;
-    animation-delay: 0.25s;
-  }
+  .label-tag { font-size: 10px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 12px; display: block; }
+  .label-heading { font-family: 'Bebas Neue', sans-serif; font-size: clamp(34px, 5.5vw, 54px); letter-spacing: 3px; line-height: 1; margin-bottom: 12px; color: #fff; }
+  .label-body { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.75; }
 
-  .subtext p {
-    font-size: clamp(14px, 3.5vw, 17px);
-    font-weight: 300;
-    color: #aaaaaa;
-    line-height: 1.8;
-    letter-spacing: 0.3px;
-  }
-
-  /* PITCH LINE */
-  .pitch {
-    font-size: clamp(13px, 3vw, 15px);
-    font-weight: 400;
-    color: #666666;
-    line-height: 1.7;
-    max-width: 400px;
-    font-style: italic;
-    opacity: 0;
-    animation: fadeIn 0.8s ease forwards;
-    animation-delay: 0.35s;
-  }
-
-  /* SIGNUP */
   .signup-section {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    opacity: 0;
-    animation: fadeIn 0.8s ease forwards;
-    animation-delay: 0.4s;
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 80px 24px; gap: 32px; background: #000;
   }
+
+  .signup-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px; letter-spacing: 5px; line-height: 1; color: #fff;
+  }
+  .signup-logo span { color: #c8392b; }
 
   .signup-label {
-    font-size: 12px;
-    font-weight: 400;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #666666;
+    font-size: 12px; font-weight: 400; letter-spacing: 2px;
+    text-transform: uppercase; color: #666;
   }
 
   .signup-form {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-    max-width: 360px;
+    display: flex; flex-direction: column; gap: 10px;
+    width: 100%; max-width: 360px; align-items: center;
+  }
+
+  .signup-form form {
+    display: flex; flex-direction: column; gap: 10px; width: 100%;
   }
 
   .signup-input {
-    width: 100%;
-    background: #111111;
-    border: 1px solid #222222;
-    color: #ffffff;
-    font-family: 'Inter', sans-serif;
-    font-size: 14px;
-    font-weight: 300;
-    padding: 14px 18px;
-    text-align: center;
-    outline: none;
-    transition: border-color 0.2s;
-    border-radius: 0;
-    -webkit-appearance: none;
+    width: 100%; background: #111; border: 1px solid #222; color: #fff;
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 300;
+    padding: 14px 18px; text-align: center; outline: none;
+    transition: border-color 0.2s; border-radius: 0; -webkit-appearance: none;
   }
-
-  .signup-input::placeholder {
-    color: #444444;
-  }
-
-  .signup-input:focus {
-    border-color: #c8392b;
-  }
+  .signup-input::placeholder { color: #444; }
+  .signup-input:focus { border-color: #c8392b; }
 
   .signup-btn {
-    width: 100%;
-    background: #c8392b;
-    border: none;
-    color: #ffffff;
-    font-family: 'Inter', sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    padding: 14px 24px;
-    cursor: pointer;
-    transition: background 0.2s, opacity 0.2s;
-    border-radius: 0;
-    -webkit-appearance: none;
+    width: 100%; background: #c8392b; border: none; color: #fff;
+    font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500;
+    letter-spacing: 3px; text-transform: uppercase; padding: 14px 24px;
+    cursor: pointer; transition: background 0.2s; border-radius: 0; -webkit-appearance: none;
   }
+  .signup-btn:hover { background: #a82e22; }
 
-  .signup-btn:hover {
-    background: #a82e22;
-  }
-
-  .signup-btn:active {
-    opacity: 0.85;
-  }
-
-  .signup-note {
-    font-size: 11px;
-    color: #333333;
-    letter-spacing: 0.5px;
-  }
+  .signup-note { font-size: 11px; color: #333; letter-spacing: 0.5px; }
 
   .success-msg {
-    display: none;
-    font-size: 12px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #c8392b;
-    padding: 14px 0;
+    display: none; font-size: 12px; letter-spacing: 2px;
+    text-transform: uppercase; color: #c8392b; padding: 14px 0;
   }
 
-  /* SOCIAL */
-  .social-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    opacity: 0;
-    animation: fadeIn 0.8s ease forwards;
-    animation-delay: 0.55s;
-  }
+  .social-section { display: flex; flex-direction: column; align-items: center; gap: 16px; }
 
   .social-label {
-    font-size: 11px;
-    font-weight: 400;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #444444;
+    font-size: 11px; font-weight: 400; letter-spacing: 2px;
+    text-transform: uppercase; color: #444;
   }
 
-  .social-links {
-    display: flex;
-    align-items: center;
-    gap: 28px;
-  }
+  .social-links { display: flex; align-items: center; gap: 28px; }
 
   .social-link {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #555555;
-    text-decoration: none;
-    transition: color 0.2s;
+    display: flex; align-items: center; justify-content: center;
+    color: #555; text-decoration: none; transition: color 0.2s;
+  }
+  .social-link:hover { color: #fff; }
+  .social-link svg { width: 20px; height: 20px; fill: currentColor; }
+
+  .signup-footer {
+    font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #222;
   }
 
-  .social-link:hover {
-    color: #ffffff;
+  .end-section {
+    min-height: 60vh; display: flex; align-items: center; justify-content: center;
+    font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 3px; color: #333; background: #000;
   }
 
-  .social-link svg {
-    width: 20px;
-    height: 20px;
-    fill: currentColor;
-  }
-
-  /* FOOTER */
-  .footer {
-    font-size: 10px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: #222222;
-    opacity: 0;
-    animation: fadeIn 0.8s ease forwards;
-    animation-delay: 0.7s;
-  }
-
-  /* ANIMATION */
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(12px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  /* ERROR STATE */
-  .signup-input.error {
-    border-color: #c8392b;
+  @media (max-width: 600px) {
+    .road-label { max-width: 180px; }
+    .label-discover { right: 16px; }
+    .label-explore, .label-rate { left: 16px; }
   }
 </style>
 </head>
 <body>
 
-<div class="container">
-
-  <!-- LOGO -->
+<section class="hero">
   <div class="logo">Drives<span>.</span></div>
-
-  <!-- SUBTEXT -->
   <div class="subtext">
-    <p>Track the roads you've driven.</p>
-    <p>Discover new roads.</p>
-    <p>Find your next great drive.</p>
+    <p>Track every road you've driven.</p>
+    <p>Discover the ones you haven't.</p>
+    <p>Built for drivers who drive for pleasure.</p>
   </div>
-
-  <!-- PITCH LINE -->
-  <div class="pitch">
-    Track every road you've driven. Discover the ones you haven't. Built for drivers who drive for pleasure.
+  <div class="scroll-hint">
+    <span>Scroll</span>
+    <div class="scroll-arrow"></div>
   </div>
+</section>
 
-  <!-- EMAIL SIGNUP -->
-  <div class="signup-section">
-    <div class="signup-label">Be the first to know</div>
-    <div class="signup-form">
-      <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
-      <form id="signupForm" action="YOUR_GOOGLE_APPS_SCRIPT_URL" method="POST" target="hidden_iframe" onsubmit="handleSubmit()">
-        <input
-          type="email"
-          name="email"
-          id="emailInput"
-          class="signup-input"
-          placeholder="your@email.com"
-          autocomplete="email"
-          required
-        />
-        <button type="submit" class="signup-btn">Notify Me</button>
-      </form>
+<div class="trace-wrapper" id="traceWrapper">
+  <div class="trace-sticky" id="traceSticky">
+
+    <!-- Map canvas pans upward as you scroll -->
+    <div class="map-canvas" id="mapCanvas">
+      <svg class="map-svg" id="mapSvg"
+           viewBox="0 0 1000 4000"
+           preserveAspectRatio="xMidYMin meet">
+
+        <!-- BACKGROUND -->
+        <rect id="mapBg" width="1000" height="4000" fill="#0d1311"/>
+
+        <!-- TERRAIN -->
+        <g opacity="0.4">
+          <!-- Section 1 -->
+          <ellipse cx="820" cy="300" rx="200" ry="140" fill="#0a1418"/>
+          <ellipse cx="140" cy="600" rx="160" ry="120" fill="#0a1418"/>
+          <ellipse cx="700" cy="900" rx="150" ry="100" fill="#0a1418"/>
+          <path d="M 170 0 L 150 500 L 190 1000" stroke="#1a2320" stroke-width="2.5" fill="none"/>
+          <path d="M 830 0 L 850 500 L 810 1000" stroke="#1a2320" stroke-width="2.5" fill="none"/>
+          <path d="M 60 380 L 290 400 L 460 380" stroke="#1a2320" stroke-width="2" fill="none"/>
+          <path d="M 600 260 L 830 240 L 960 270" stroke="#1a2320" stroke-width="2" fill="none"/>
+          <!-- Section 2 -->
+          <ellipse cx="200" cy="1500" rx="190" ry="150" fill="#08161f"/>
+          <ellipse cx="820" cy="1800" rx="170" ry="120" fill="#08161f"/>
+          <ellipse cx="500" cy="2100" rx="160" ry="110" fill="#08161f"/>
+          <path d="M 710 1000 L 730 1500 L 700 2000" stroke="#131d2a" stroke-width="2.5" fill="none"/>
+          <path d="M 270 1100 L 250 1600 L 290 2100" stroke="#131d2a" stroke-width="2.5" fill="none"/>
+          <path d="M 100 1700 L 350 1720 L 520 1700" stroke="#131d2a" stroke-width="2" fill="none"/>
+          <path d="M 560 1300 L 780 1280 L 920 1310" stroke="#131d2a" stroke-width="2" fill="none"/>
+          <!-- Section 3 -->
+          <ellipse cx="760" cy="2600" rx="200" ry="150" fill="#091a12"/>
+          <ellipse cx="230" cy="2900" rx="170" ry="130" fill="#091a12"/>
+          <ellipse cx="550" cy="3300" rx="180" ry="120" fill="#091a12"/>
+          <path d="M 330 2100 L 310 2600 L 350 3100 L 320 3600" stroke="#142318" stroke-width="2.5" fill="none"/>
+          <path d="M 760 2200 L 780 2700 L 750 3200 L 780 3700" stroke="#142318" stroke-width="2.5" fill="none"/>
+          <path d="M 80 2700 L 310 2720 L 490 2700" stroke="#142318" stroke-width="2" fill="none"/>
+          <path d="M 580 3100 L 800 3080 L 950 3110" stroke="#142318" stroke-width="2" fill="none"/>
+        </g>
+
+        <!-- GHOST ROAD (full route faint) -->
+        <path id="roadGhost"
+          d="M 500 0
+             C 500 150  240 200  280 430
+             C 320 640  720 600  680 830
+             C 640 1040 180 980  260 1220
+             C 340 1440 780 1380 720 1620
+             C 660 1840 200 1760 300 2000
+             C 400 2220 820 2160 740 2400
+             C 660 2620 180 2540 300 2780
+             C 420 3000 800 2960 700 3200
+             C 620 3380 530 3460 500 3600"
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          stroke-width="10"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+        <!-- TRACED ROAD -->
+        <path id="tracePath"
+          d="M 500 0
+             C 500 150  240 200  280 430
+             C 320 640  720 600  680 830
+             C 640 1040 180 980  260 1220
+             C 340 1440 780 1380 720 1620
+             C 660 1840 200 1760 300 2000
+             C 400 2220 820 2160 740 2400
+             C 660 2620 180 2540 300 2780
+             C 420 3000 800 2960 700 3200
+             C 620 3380 530 3460 500 3600"
+          fill="none"
+          stroke="#c8392b"
+          stroke-width="10"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          style="filter: drop-shadow(0 0 10px rgba(200,57,43,0.9));"/>
+
+      </svg>
     </div>
+
+    <!-- Fixed marker in centre of screen -->
+    <div class="marker-fixed" id="markerFixed">
+      <svg width="32" height="32" viewBox="-16 -16 32 32">
+        <circle id="pulseRing" r="14" fill="none" stroke="#c8392b" stroke-width="2" opacity="0.4">
+          <animate attributeName="r" from="10" to="22" dur="2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" from="0.5" to="0" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle id="markerDot" r="10" fill="#c8392b" style="filter: drop-shadow(0 0 8px rgba(200,57,43,1));"/>
+        <circle r="4" fill="#fff"/>
+      </svg>
+    </div>
+
+    <!-- Overlays -->
+    <div class="vignette"></div>
+    <div class="fade-top"></div>
+    <div class="fade-bottom"></div>
+
+    <!-- Labels -->
+    <div class="road-label label-explore" id="labelExplore">
+      <span class="label-tag" style="color:#c8392b;">Explore</span>
+      <div class="label-heading">Your Map.<br>Your Roads.</div>
+      <p class="label-body">The roads you've driven are highlighted on your map. The ones you're yet to drive are right there waiting.</p>
+    </div>
+
+    <div class="road-label label-discover" id="labelDiscover">
+      <span class="label-tag" style="color:#3b6fd4;">Discover</span>
+      <div class="label-heading">Find The<br>Best Roads.</div>
+      <p class="label-body">Find top rated roads wherever you are, rated by other driving enthusiasts.</p>
+    </div>
+
+    <div class="road-label label-rate" id="labelRate">
+      <span class="label-tag" style="color:#2e8b57;">Rate</span>
+      <div class="label-heading">Leave Your<br>Mark.</div>
+      <p class="label-body">Rate the roads you love and help build the world's greatest driving leaderboards.</p>
+    </div>
+
+  </div>
+</div>
+
+<section class="signup-section">
+
+  <div class="signup-logo">Drives<span>.</span></div>
+
+  <div class="signup-label">Be the first to know</div>
+
+  <div class="signup-form">
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+    <form id="signupForm" action="YOUR_GOOGLE_APPS_SCRIPT_URL" method="POST" target="hidden_iframe" onsubmit="handleSubmit()">
+      <input
+        type="email"
+        name="email"
+        id="emailInput"
+        class="signup-input"
+        placeholder="your@email.com"
+        autocomplete="email"
+        required
+      />
+      <button type="submit" class="signup-btn">Notify Me</button>
+    </form>
     <div class="signup-note">No spam. One email when we launch.</div>
     <div class="success-msg" id="successMsg">You're on the list. We'll be in touch.</div>
   </div>
 
-  <!-- SOCIAL -->
   <div class="social-section">
     <div class="social-label">Follow Us</div>
     <div class="social-links">
-
-      <!-- Instagram -->
       <a href="https://instagram.com/joindrives" target="_blank" rel="noopener" class="social-link" aria-label="Instagram">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
       </a>
-
-      <!-- TikTok -->
       <a href="https://tiktok.com/@joindrives" target="_blank" rel="noopener" class="social-link" aria-label="TikTok">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.75a4.85 4.85 0 01-1.01-.06z"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.75a4.85 4.85 0 01-1.01-.06z"/></svg>
       </a>
-
-      <!-- X / Twitter -->
       <a href="https://x.com/joindrives" target="_blank" rel="noopener" class="social-link" aria-label="X">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.261 5.632 5.903-5.632zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
       </a>
-
-      <!-- Email -->
       <a href="mailto:hello@joindrives.app" class="social-link" aria-label="Email">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
-        </svg>
+        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
       </a>
-
     </div>
   </div>
 
-  <!-- FOOTER -->
-  <div class="footer">Drives. Ltd 2026</div>
+  <div class="signup-footer">Drives. Ltd 2026</div>
 
-</div>
+</section>
 
 <script>
   function handleSubmit() {
     const successMsg = document.getElementById('successMsg');
     const signupNote = document.querySelector('.signup-note');
     const form = document.getElementById('signupForm');
-
     setTimeout(function() {
       form.style.display = 'none';
       signupNote.style.display = 'none';
       successMsg.style.display = 'block';
     }, 500);
   }
+</script>
+
+<script>
+  const wrapper   = document.getElementById('traceWrapper');
+  const sticky    = document.getElementById('traceSticky');
+  const mapCanvas = document.getElementById('mapCanvas');
+  const mapBg     = document.getElementById('mapBg');
+  const tracePath = document.getElementById('tracePath');
+  const markerDot = document.getElementById('markerDot');
+  const pulseRing = document.getElementById('pulseRing');
+
+  const labelExplore  = document.getElementById('labelExplore');
+  const labelDiscover = document.getElementById('labelDiscover');
+  const labelRate     = document.getElementById('labelRate');
+
+  const pathLength = tracePath.getTotalLength();
+  tracePath.style.strokeDasharray  = pathLength;
+  tracePath.style.strokeDashoffset = pathLength;
+
+  const T1 = 0.33;
+  const T2 = 0.66;
+
+  const cols = {
+    explore:  '#c8392b',
+    discover: '#2952b3',
+    rate:     '#1f6b3e'
+  };
+
+  const bgs = {
+    explore:  '#0d1311',
+    discover: '#0a121c',
+    rate:     '#0b160f'
+  };
+
+  function hexToRgb(hex) {
+    return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
+  }
+
+  function lerpC(c1, c2, t) {
+    const a = hexToRgb(c1), b = hexToRgb(c2);
+    return `rgb(${Math.round(a[0]+(b[0]-a[0])*t)},${Math.round(a[1]+(b[1]-a[1])*t)},${Math.round(a[2]+(b[2]-a[2])*t)})`;
+  }
+
+  function update() {
+    const rect  = wrapper.getBoundingClientRect();
+    const total = wrapper.offsetHeight - window.innerHeight;
+    const prog  = Math.max(0, Math.min(1, -rect.top / total));
+
+    // 1. Draw line
+    tracePath.style.strokeDashoffset = pathLength * (1 - prog);
+
+    // 2. Get marker position on SVG path
+    const svgEl   = document.getElementById('mapSvg');
+    const svgW    = svgEl.viewBox.baseVal.width;
+    const svgH    = svgEl.viewBox.baseVal.height;
+    const canvasW = mapCanvas.offsetWidth;
+    const scale   = canvasW / svgW;
+    const canvasH = svgH * scale;
+
+    mapCanvas.style.height = canvasH + 'px';
+
+    const pt       = tracePath.getPointAtLength(pathLength * prog);
+    const markerPx = pt.y * scale;
+    const vpH      = window.innerHeight;
+    const panY     = Math.max(0, Math.min(canvasH - vpH, markerPx - vpH / 2));
+    mapCanvas.style.transform = `translateY(${-panY}px)`;
+
+    // 3. Position marker fixed element to follow road precisely
+    // Marker x: convert SVG x coord to viewport x
+    const markerVpX = pt.x * scale;
+    // Marker y: always sits at the viewport centre vertically (since we pan to keep it centred)
+    // But clamp at edges where panning stops
+    const markerVpY = markerPx - panY;
+
+    const markerFixed = document.getElementById('markerFixed');
+    markerFixed.style.left = markerVpX + 'px';
+    markerFixed.style.top  = markerVpY + 'px';
+    markerFixed.style.transform = 'translate(-50%, -50%)';
+
+    // 4. Colour
+    let lineCol, bgCol;
+    if (prog >= T2) {
+      const t = Math.min((prog - T2) / (1 - T2) * 3, 1);
+      lineCol = lerpC(cols.discover, cols.rate, t);
+      bgCol   = lerpC(bgs.discover,  bgs.rate,  t);
+    } else if (prog >= T1) {
+      const t = Math.min((prog - T1) / (T2 - T1) * 3, 1);
+      lineCol = lerpC(cols.explore, cols.discover, t);
+      bgCol   = lerpC(bgs.explore,  bgs.discover,  t);
+    } else {
+      lineCol = cols.explore;
+      bgCol   = bgs.explore;
+    }
+
+    tracePath.setAttribute('stroke', lineCol);
+    tracePath.style.filter = `drop-shadow(0 0 10px ${lineCol})`;
+    markerDot.setAttribute('fill', lineCol);
+    markerDot.style.filter = `drop-shadow(0 0 10px ${lineCol})`;
+    sticky.style.background = bgCol;
+    mapBg.setAttribute('fill', bgCol);
+
+    // 5. Labels
+    labelExplore.classList.toggle('visible',  prog < T1 - 0.04);
+    labelDiscover.classList.toggle('visible', prog >= T1 + 0.04 && prog < T2 - 0.04);
+    labelRate.classList.toggle('visible',     prog >= T2 + 0.04);
+  }
+
+  window.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', update);
+  update();
 </script>
 
 </body>
